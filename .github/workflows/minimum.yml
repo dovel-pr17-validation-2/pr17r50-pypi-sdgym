@@ -1,0 +1,45 @@
+name: Unit Tests Minimum Versions
+
+on:
+  push:
+  pull_request:
+    types: [opened, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  minimum:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 80
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: macos-latest
+            python-version: '3.10'
+          - os: macos-latest
+            python-version: '3.14'
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      shell: bash
+      run: |
+        # grpcio macOS wheels have invalid tags; force source install
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          python -m pip install --no-binary=grpcio grpcio
+        fi
+        make upgradepip
+        python -m pip install --no-cache-dir invoke .[test]
+
+    - name: Test with minimum versions
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      run: invoke minimum

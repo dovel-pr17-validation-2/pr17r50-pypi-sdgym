@@ -1,0 +1,64 @@
+# Installing SDGym
+
+## Requirements
+
+**SDGym** has been developed and tested on [Python 3.10, 3.11, 3.12, 3.13 and 3.14](https://www.python.org/downloads/)
+
+Also, although it is not strictly required, the usage of a [virtualenv](
+https://virtualenv.pypa.io/en/latest/) is highly recommended in order to avoid
+interfering with other software installed in the system where **SDGym** is run.
+
+## Install with pip
+
+The easiest and recommended way to install **SDGym** is using [pip](
+https://pip.pypa.io/en/stable/):
+
+```bash
+pip install sdgym
+```
+
+This will pull and install the latest stable release from [PyPi](https://pypi.org/).
+
+## Install with conda
+
+**SDGym** can also be installed using [conda](https://docs.conda.io/en/latest/):
+
+```bash
+conda install -c pytorch -c conda-forge sdgym
+```
+
+This will pull and install the latest stable release from [Anaconda](https://anaconda.org/).
+
+## Install from source
+
+If you want to install **SDGym** from source you need to first clone the repository
+and then execute the `make install` command inside the `stable` branch. Note that this
+command works only on Unix based systems like GNU/Linux and macOS:
+
+```bash
+git clone https://github.com/sdv-dev/SDGym
+cd SDGym
+git checkout stable
+make install
+```
+
+## Install for development
+
+If you intend to modify the source code or contribute to the project you will need to
+install it from the source using the `make install-develop` command. In this case, we
+recommend you to branch from `main` first:
+
+```bash
+git clone git@github.com:sdv-dev/SDGym
+cd SDGym
+git checkout main
+git checkout -b <your-branch-name>
+make install-develop
+```
+
+For more details about how to contribute to the project please visit the [Contributing Guide](
+CONTRIBUTING.rst).
+
+## Run using Docker
+
+We support using Docker to run **SDGym**. For more information on how to do so, check the `DOCKER.md` file.

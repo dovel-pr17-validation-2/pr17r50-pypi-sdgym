@@ -1,0 +1,497 @@
+# History
+
+## v0.16.1 - 2026-11-04
+
+### New Features
+
+* Saving the QualityReport as part of the benchmark artifacts - Issue [#666](https://github.com/sdv-dev/SDGym/issues/666) by @sarahmish
+
+### Bugs Fixed
+
+* Pin SDV<2.0 packages - Issue [#671](https://github.com/sdv-dev/SDGym/issues/671) by @sarahmish
+
+## v0.16.0 - 2026-10-30
+
+### New Features
+
+* Include `DataDesignerSynthesizer` in the monthly benchmark - Issue [#657](https://github.com/sdv-dev/SDGym/issues/657) by @sarahmish
+* Add DataDesigner synthesizer - Issue [#651](https://github.com/sdv-dev/SDGym/issues/651) by @sarahmish
+
+### Maintenance
+
+* Make Multi-Table monthly benchmark run on the second day of the month - Issue [#664](https://github.com/sdv-dev/SDGym/issues/664) by @sarahmish
+* Remove support for Python 3.9 - Issue [#661](https://github.com/sdv-dev/SDGym/issues/661) by @sarahmish
+
+## v0.15.1 - 2026-09-30
+
+### Bugs Fixed
+
+* Fix tests after adding Metadata V2 for demo datasets - Issue [#646](https://github.com/sdv-dev/SDGym/issues/646) by @sarahmish
+* Update model card for TabDDPM and ClavaDDPM - Issue [#644](https://github.com/sdv-dev/SDGym/issues/644) by @sarahmish
+
+## v0.15.0 - 2026-08-31
+
+### New Features
+
+* Include `TabDDPM` and `ClavaDDPM` in monthly benchmarks - Issue [#638](https://github.com/sdv-dev/SDGym/issues/638) by @sarahmish
+* Add `TabDDPM` and `ClavaDDPM` synthesizers to SDGym - Issue [#637](https://github.com/sdv-dev/SDGym/issues/637) by @sarahmish
+* Avoid loading full datasets when generating benchmark dataset details - Issue [#609](https://github.com/sdv-dev/SDGym/issues/609) by @R-Palazzo
+
+### Bugs Fixed
+
+* Incorrect metainfo increment when S3 results span multiple pages - Issue [#634](https://github.com/sdv-dev/SDGym/issues/634) by @R-Palazzo
+
+## v0.14.4 - 2026-06-02
+
+### Bugs Fixed
+
+* Bump SDV dependency to v1.37.0 - Issue [#616](https://github.com/sdv-dev/SDGym/issues/616) by @R-Palazzo
+* `upload_benchmark_results` workflow hangs on `get_dataset_details` due to full dataset downloads - Issue [#601](https://github.com/sdv-dev/SDGym/issues/601) by @R-Palazzo
+* Add the GCP credentials secrets to the upload benchmark workflow - Issue [#599](https://github.com/sdv-dev/SDGym/issues/599) by @R-Palazzo
+
+### Internal
+
+* Update the benchmark to launch one instance per (dataset, synthesizer) pair - Issue [#605](https://github.com/sdv-dev/SDGym/issues/605) by @R-Palazzo
+* Update the benchmark to load datasets from multiple S3 buckets when None is specified - Issue [#604](https://github.com/sdv-dev/SDGym/issues/604) by @R-Palazzo
+
+### Maintenance
+
+* Use Node.js 24 compatible github actions - Issue [#613](https://github.com/sdv-dev/SDGym/issues/613) by @gsheni
+
+## v0.14.3 - 2026-04-17
+
+### Bugs Fixed
+
+* Fix win computation when uploading benchmark result - Issue [#590](https://github.com/sdv-dev/SDGym/issues/590) by @R-Palazzo
+* Latest PyTorch (2.11.0) is not compatible with current GCP GPU benchmark environment - Issue [#589](https://github.com/sdv-dev/SDGym/issues/589) by @R-Palazzo
+
+### Internal
+
+* Make BenchmarkConfig.compute support instance configuration in YAML - Issue [#586](https://github.com/sdv-dev/SDGym/issues/586) by @R-Palazzo
+* Update the upload benchmark workflow to work with the BenchmarkLauncher - Issue [#584](https://github.com/sdv-dev/SDGym/issues/584) by @R-Palazzo
+
+## v0.14.2 - 2026-04-01
+
+### Internal
+
+* Define the get_instance_status and get_job_status() methods of the BenchmarkLauncher - Issue [#570](https://github.com/sdv-dev/SDGym/issues/570) by @R-Palazzo
+* Define the terminate() method of the BenchmarkLauncher - Issue [#568](https://github.com/sdv-dev/SDGym/issues/568) by @R-Palazzo
+* Define workflows to be able to run from a config file or some given parameters - Issue [#547](https://github.com/sdv-dev/SDGym/issues/547) by @R-Palazzo
+* Add a script that launches a benchmark from a yaml file or a set of parameters - Issue [#546](https://github.com/sdv-dev/SDGym/issues/546) by @R-Palazzo
+* Move the current benchmark configs to yaml files - Issue [#545](https://github.com/sdv-dev/SDGym/issues/545) by @R-Palazzo
+
+## v0.14.1 - 2026-03-23
+
+### Internal
+
+* Update the "wins" computation to include the Pareto front - Issue [#572](https://github.com/sdv-dev/SDGym/issues/572) by @R-Palazzo
+
+## v0.14.0 - 2026-03-09
+
+### New Features
+
+* The ResultExplorer should look for latest run results by default - Issue [#552](https://github.com/sdv-dev/SDGym/issues/552) by @R-Palazzo
+* Update load_results to be able to filter on dataset or synthesizer - Issue [#551](https://github.com/sdv-dev/SDGym/issues/551) by @R-Palazzo
+
+### Bugs Fixed
+
+* `OUTPUT_DESTINATION_AWS` points to the wrong location - Issue [#564](https://github.com/sdv-dev/SDGym/issues/564) by @R-Palazzo
+
+## v0.13.1 - 2026-02-28
+
+### New Features
+
+* Include SDV-Enterprise in single-table benchmarks - Issue [#549](https://github.com/sdv-dev/SDGym/issues/549) by @R-Palazzo
+
+### Internal
+
+* Add extremity data points of the Pareto curve for the Quality–Speed Tradeoff plot - Issue [#556](https://github.com/sdv-dev/SDGym/issues/556) by @R-Palazzo
+* Internal benchmark results upload crashes if there's no error column in the result table - Issue [#544](https://github.com/sdv-dev/SDGym/issues/544) by @R-Palazzo
+
+### Maintenance
+
+* Update RELEASE guide to include conda-forge step - Issue [#560](https://github.com/sdv-dev/SDGym/issues/560) by @sarahmish
+* Support Python 3.14 - Issue [#528](https://github.com/sdv-dev/SDGym/issues/528) by @pvk-developer
+* Update license information in pyproject.toml to use new format - Issue [#527](https://github.com/sdv-dev/SDGym/issues/527) by @pvk-developer
+
+### Miscellaneous
+
+* Set the SDGym Slack alert to be posted on the `sdgym` channel. - Issue [#555](https://github.com/sdv-dev/SDGym/issues/555) by @R-Palazzo
+
+## v0.13.0 - 2026-01-30
+
+### New Features
+
+* Add a Dataset Details and a Model Details excel sheets when uploading benchmark results - Issue [#532](https://github.com/sdv-dev/SDGym/issues/532) by @R-Palazzo
+* Add workflow to run SDGym multi-table benchmark monthly and publish results - Issue [#516](https://github.com/sdv-dev/SDGym/issues/516) by @R-Palazzo
+* Define internal single and multi table methods to run on GCP - Issue [#515](https://github.com/sdv-dev/SDGym/issues/515) by @R-Palazzo
+* Add multi table support to ResultsExplorer - Issue [#488](https://github.com/sdv-dev/SDGym/issues/488) by @fealho
+* Add benchmark_multi_table_aws - Issue [#487](https://github.com/sdv-dev/SDGym/issues/487) by @R-Palazzo
+* Add benchmark_multi_table function - Issue [#486](https://github.com/sdv-dev/SDGym/issues/486) by @pvk-developer
+* Add multi-table UniformSynthesizer - Issue [#485](https://github.com/sdv-dev/SDGym/issues/485) by @R-Palazzo
+
+### Bugs Fixed
+
+* Private S3 bucket access fails in benchmark_multi_table_aws despite valid credentials - Issue [#525](https://github.com/sdv-dev/SDGym/issues/525) by @R-Palazzo
+* RealTabFormer 0.2.4 causes integration to fail - Issue [#523](https://github.com/sdv-dev/SDGym/issues/523) by @R-Palazzo
+
+### Internal
+
+* Remove deprecated parameters - Issue [#519](https://github.com/sdv-dev/SDGym/issues/519) by @fealho
+
+### Miscellaneous
+
+* Update multi-table dataset list - Issue [#535](https://github.com/sdv-dev/SDGym/issues/535) by @R-Palazzo
+
+## v0.12.1 - 2025-12-05
+
+### New Features
+
+* If there are no datasets in the bucket, the `DatasetExplorer` should show a warning and return an empty table - Issue [#475](https://github.com/sdv-dev/SDGym/issues/475) by @fealho
+* Add input validation for the `DatasetExplorer` class and functions - Issue [#474](https://github.com/sdv-dev/SDGym/issues/474) by @fealho
+
+### Bugs Fixed
+
+* Record the train and sample times whenever an error occurs during a benchmark. - Issue [#503](https://github.com/sdv-dev/SDGym/issues/503) by @R-Palazzo
+
+### Maintenance
+
+* Workflow fails due to lack of space - Issue [#511](https://github.com/sdv-dev/SDGym/issues/511) by @rwedge
+
+## v0.12.0 - 2025-11-20
+
+### New Features
+
+* Rename create_sdv_synthesizer_variant to create_synthesizer_variant - Issue [#491](https://github.com/sdv-dev/SDGym/issues/491) by @R-Palazzo
+* SDGym should be able to automatically discover SDV Enterprise synthesizers - Issue [#481](https://github.com/sdv-dev/SDGym/issues/481) by @R-Palazzo
+* Incorporate the `get_available_datasets` functionality into the `DatasetExplorer` - Issue [#473](https://github.com/sdv-dev/SDGym/issues/473) by @fealho
+
+### Bugs Fixed
+
+* Update result aggregation logic in the ResultExplorer to match new naming schema - Issue [#494](https://github.com/sdv-dev/SDGym/issues/494) by @R-Palazzo
+* When running a benchmark locally, the `additional_datasets_folder` path should be the root path - Issue [#484](https://github.com/sdv-dev/SDGym/issues/484) by @fealho
+
+## v0.11.1 - 2025-11-03
+
+### Bugs Fixed
+
+* Missing dependency openpyxl - Issue [#479](https://github.com/sdv-dev/SDGym/issues/479) by @rwedge
+
+## v0.11.0 - 2025-10-31
+
+### New Features
+
+* Add a `DatasetExplorer` class that provides a summary of all datasets in a bucket (for a given modality) - Issue [#469](https://github.com/sdv-dev/SDGym/issues/469) by @pvk-developer
+* Update SDGym to use the new S3 bucket and bucket structure - Issue [#468](https://github.com/sdv-dev/SDGym/issues/468) by @pvk-developer
+* Update Pareto plot data generation to use the Adjusted Time and Quality score - Issue [#462](https://github.com/sdv-dev/SDGym/issues/462) by @R-Palazzo
+* The `ResultsExplorer` should allow programmatic access to all the saved artifacts from benchmarking - Issue [#450](https://github.com/sdv-dev/SDGym/issues/450) by @R-Palazzo
+* When performing multiple SDGym runs on the same day, save the artifacts with consistent naming - Issue [#448](https://github.com/sdv-dev/SDGym/issues/448) by @R-Palazzo
+* To simulate graceful degradation, fallback to using the results from the UniformSynthesizer - Issue [#439](https://github.com/sdv-dev/SDGym/issues/439) by @rwedge
+* Pip install sdgym released version on ec2 machines - Issue [#437](https://github.com/sdv-dev/SDGym/issues/437) by @pvk-developer
+* Add a Fallback to UniformSynthesizer when an error occur and improve the time tracker of the synthetic data generation - Issue [#436](https://github.com/sdv-dev/SDGym/issues/436) by @R-Palazzo
+* Make the synthesizer names consistent throughout SDGym - Issue [#430](https://github.com/sdv-dev/SDGym/issues/430) by @R-Palazzo
+* Simplify the import API for SDGym's results explorer - Issue [#429](https://github.com/sdv-dev/SDGym/issues/429) by @R-Palazzo
+* Add workflow to run SDGym monthly and publish results - Issue [#425](https://github.com/sdv-dev/SDGym/issues/425) by @R-Palazzo
+* Add benchmark_single_table_aws function - Issue [#414](https://github.com/sdv-dev/SDGym/issues/414) by @R-Palazzo
+* Add summarize function to SDGymResultsExplorer class - Issue [#412](https://github.com/sdv-dev/SDGym/issues/412) by @R-Palazzo
+* Add SDGymResultsExplorer class - Issue [#411](https://github.com/sdv-dev/SDGym/issues/411) by @R-Palazzo
+* Add ability to save synthesizers and data when running benchmark_single_table - Issue [#410](https://github.com/sdv-dev/SDGym/issues/410) by @R-Palazzo
+* Update REalTabFormer default parameters so that it runs on benchmarking - Issue [#400](https://github.com/sdv-dev/SDGym/issues/400) by @fealho
+* Add DCRBaseline Metric to single table report - Issue [#397](https://github.com/sdv-dev/SDGym/issues/397) by @gsheni
+
+### Bugs Fixed
+
+* Update link to s3 results in the Slack Alert message - Issue [#464](https://github.com/sdv-dev/SDGym/issues/464) by @R-Palazzo
+* EC2 instance not terminating after timeout - Issue [#463](https://github.com/sdv-dev/SDGym/issues/463) by @R-Palazzo
+* Adjusted time and quality score not aggregating correctly on EC2 - Issue [#461](https://github.com/sdv-dev/SDGym/issues/461) by @R-Palazzo
+* Update warning message for deprecated parameters - Issue [#455](https://github.com/sdv-dev/SDGym/issues/455) by @R-Palazzo
+* The `UniformSynthesizer` produces multiple `UserWarning` messages when run on a demo dataset - Issue [#449](https://github.com/sdv-dev/SDGym/issues/449) by @R-Palazzo
+* Always include UniformSynthesizer doesn't work on AWS - Issue [#446](https://github.com/sdv-dev/SDGym/issues/446) by @R-Palazzo
+* Fix minimum test version due to RealTabFormer and Torch releases - Issue [#434](https://github.com/sdv-dev/SDGym/issues/434) by @R-Palazzo
+* Add modality parameter to get_available_datasets function - Issue [#403](https://github.com/sdv-dev/SDGym/issues/403) by @gsheni
+* Update the EC2 instance used when run_on_ec2 is enabled - Issue [#396](https://github.com/sdv-dev/SDGym/issues/396) by @R-Palazzo
+* All bump-version commands are failing - Issue [#391](https://github.com/sdv-dev/SDGym/issues/391) by @amontanez24
+
+### Internal
+
+* To simulate graceful degradation, always run the UniformSynthesizer on all the requested datasets - Issue [#438](https://github.com/sdv-dev/SDGym/issues/438) by @rwedge
+
+### Maintenance
+
+* Remove support for Python 3.8 - Issue [#457](https://github.com/sdv-dev/SDGym/issues/457) by @fealho
+* Check pyproject for release candidate dependencies - Issue [#406](https://github.com/sdv-dev/SDGym/issues/406) by @rwedge
+* Update the library installation script for EC2 machines to install optional dependencies like RealTabFormer - Issue [#388](https://github.com/sdv-dev/SDGym/issues/388) by @R-Palazzo
+* Speed up test_benchmark_single_table_realtabformer_no_metrics integration test - Issue [#379](https://github.com/sdv-dev/SDGym/issues/379) by @fealho
+* Update python set up step in workflows to use latest python version - Issue [#361](https://github.com/sdv-dev/SDGym/issues/361) by @frances-h
+* Support Python 3.13 - Issue [#355](https://github.com/sdv-dev/SDGym/issues/355) by @rwedge
+
+### Miscellaneous
+
+* Add workflow to release SDGym on PyPI - Issue [#418](https://github.com/sdv-dev/SDGym/issues/418) by @gsheni
+
+## v0.10.0 - 2025-02-06
+
+### New Features
+
+* Add integration with 3rd party synthesizer (REalTabFormer) - Issue [#347](https://github.com/sdv-dev/SDGym/issues/347) by @cristid9
+* Add support for numpy 2.0.0 - Issue [#315](https://github.com/sdv-dev/SDGym/issues/315) by @R-Palazzo
+
+### Bugs Fixed
+
+* Minimum tests failing because of broken action - Issue [#351](https://github.com/sdv-dev/SDGym/issues/351) by @amontanez24
+* The `ColumnSynthesizer` should follow the sdtypes in the metadata (not the data's dtypes) - Issue [#249](https://github.com/sdv-dev/SDGym/issues/249) by @fealho
+
+### Maintenance
+
+* Minimum tests fail due to dependency version mismatch - Issue [#376](https://github.com/sdv-dev/SDGym/issues/376) by @amontanez24
+* Create Prepare Release workflow - Issue [#364](https://github.com/sdv-dev/SDGym/issues/364) by @R-Palazzo
+* Migrate`SDV` synthesizer to Use Unified `Metadata` Instead of Legacy `SingleTableMetadata` - Issue [#359](https://github.com/sdv-dev/SDGym/issues/359) by @fealho
+* Update codecov and add flag for integration tests - Issue [#354](https://github.com/sdv-dev/SDGym/issues/354) by @amontanez24
+
+## v0.9.1 - 2024-08-29
+
+### Bugs Fixed
+
+* `AttributeError` when running custom synthesizer with timeout - Issue [#335](https://github.com/sdv-dev/SDGym/issues/335) by @fealho
+
+## v0.9.0 - 2024-08-07
+
+This release enables the diagnostic score to be computed in a benchmarking run. It also renames the `IndependentSynthesizer` to `ColumnSynthesizer`. Finally, it fixes a bug so that the time for all metrics will now be used to compute the `Evaluate_Time` column in the results.
+
+### Bugs Fixed
+
+* Cap numpy to less than 2.0.0 until SDGym supports - Issue [#313](https://github.com/sdv-dev/SDGym/issues/313) by @gsheni
+* The returned `Evaluate_Time` does not include results from all metrics - Issue [#310](https://github.com/sdv-dev/SDGym/issues/310) by @lajohn4747
+
+### New Features
+
+* Rename `IndependentSynthesizer` to `ColumnSynthesizer` - Issue [#319](https://github.com/sdv-dev/SDGym/issues/319) by @lajohn4747
+* Allow the ability to compute diagnostic score in a benchmarking run - Issue [#311](https://github.com/sdv-dev/SDGym/issues/311) by @lajohn4747
+
+## v0.8.0 - 2024-06-07
+
+This release adds support for both Python 3.11 and 3.12! It also drops support for Python 3.7.
+
+This release adds a new parameter to `benchmark_single_table` called `run_on_ec2`. When enabled, it will launch a `t2.medium` ec2 instance on the user's AWS account using the credentials they specify in environment variables. The benchmarking will then run on this instance. The `output_filepath` must be provided and must be in the format `{s3_bucket_name}/{path_to_file}` when `run_on_ec2` is enabled.
+
+### Documentation
+
+* Docs for AWS integration are incorrect - Issue [#304](https://github.com/sdv-dev/SDGym/issues/304) by @srinify
+
+### Maintenance
+
+* Add support for Python 3.11 - Issue [#250](https://github.com/sdv-dev/SDGym/issues/250) by @fealho
+* Remove anyio usage - Issue [#252](https://github.com/sdv-dev/SDGym/issues/252) by @lajohn4747
+* Drop support for Python 3.7 - Issue [#254](https://github.com/sdv-dev/SDGym/issues/254) by @R-Palazzo
+* Switch default branch from master to main - Issue [#257](https://github.com/sdv-dev/SDGym/issues/257) by @R-Palazzo
+* Transition from using setup.py to pyproject.toml to specify project metadata - Issue [#266](https://github.com/sdv-dev/SDGym/issues/266) by @R-Palazzo
+* Remove bumpversion and use bump-my-version - Issue [#267](https://github.com/sdv-dev/SDGym/issues/267) by @R-Palazzo
+* Switch to using ruff for Python linting and code formatting - Issue [#268](https://github.com/sdv-dev/SDGym/issues/268) by @gsheni
+* Add dependency checker - Issue [#277](https://github.com/sdv-dev/SDGym/issues/277) by @lajohn4747
+* Add bandit workflow - Issue [#282](https://github.com/sdv-dev/SDGym/issues/282) by @R-Palazzo
+* Cleanup automated PR workflows - Issue [#286](https://github.com/sdv-dev/SDGym/issues/286) by @R-Palazzo
+* Add support for Python 3.12 - Issue [#288](https://github.com/sdv-dev/SDGym/issues/288) by @fealho
+* Only run unit and integration tests on oldest and latest python versions for macos - Issue [#294](https://github.com/sdv-dev/SDGym/issues/294) by @R-Palazzo
+* Bump verions SDV, SDMetrics and RDT - Issue [#298](https://github.com/sdv-dev/SDGym/issues/298)
+
+### Bugs Fixed
+
+* The `UniformSynthesizer` should follow the sdtypes in metadata (not the data's dtypes)  - Issue [#248](https://github.com/sdv-dev/SDGym/issues/248) by @lajohn4747
+* Fix minimum version workflow when pointing to github branch - Issue [#280](https://github.com/sdv-dev/SDGym/issues/280) by @R-Palazzo
+* Passing synthesizer as string fails if run_on_ec2 is enabled - Issue [#306](https://github.com/sdv-dev/SDGym/issues/306) by @lajohn4747
+
+### New Features
+
+* Add run_on_ec2 flag to benchmark_single_table - Issue [#265](https://github.com/sdv-dev/SDGym/issues/265) by @lajohn4747
+* Remove FastML Synthesizer - Issue [#292](https://github.com/sdv-dev/SDGym/issues/292) by @lajohn4747
+
+## v0.7.0 - 2023-06-13
+
+This release adds support for SDV 1.0 and PyTorch 2.0!
+
+### New Features
+
+* Add functions to top level import - Issue [#229](https://github.com/sdv-dev/SDGym/issues/229) by @fealho
+* Cleanup SDGym to the new SDV 1.0 metadata and synthesizers - Issue [#212](https://github.com/sdv-dev/SDGym/issues/212) by @fealho
+
+### Bugs Fixed
+
+* limit_dataset_size causes sdgym to crash - Issue [#231](https://github.com/sdv-dev/SDGym/issues/231) by @fealho
+* benchmark_single_table crashes with metadata dict - Issue [#232](https://github.com/sdv-dev/SDGym/issues/232) by @fealho
+* Passing None as synthesizers runs all of them - Issue [#233](https://github.com/sdv-dev/SDGym/issues/233) by @fealho
+* timeout parameter causes sdgym to crash - Issue [#234](https://github.com/sdv-dev/SDGym/issues/234) by @pvk-developer
+* SDGym is not working with latest torch - Issue [#210](https://github.com/sdv-dev/SDGym/issues/210) by @amontanez24
+* Fix sdgym --help - Issue [#206](https://github.com/sdv-dev/SDGym/issues/206) by @katxiao
+
+### Internal
+
+* Increase code style lint - Issue [#123](https://github.com/sdv-dev/SDGym/issues/123) by @fealho
+* Remove code support for synthesizers that are not strings/classes - PR [#236](https://github.com/sdv-dev/SDGym/pull/236) by @fealho
+* Code Refactoring - Issue [#215](https://github.com/sdv-dev/SDGym/issues/215) by @fealho
+
+### Maintenance
+
+* Remove pomegranate - Issue [#230](https://github.com/sdv-dev/SDGym/issues/230) by @amontanez24
+
+## v0.6.0 - 2023-02-01
+This release introduces methods for benchmarking single table data and creating custom synthesizers, which can be based on existing SDGym-defined synthesizers or on user-defined functions. This release also adds support for Python 3.10 and drops support for Python 3.6.
+
+### New Features
+* Benchmarking progress bar should update on one line - Issue [#204](https://github.com/sdv-dev/SDGym/issues/204) by @katxiao
+* Support local additional datasets folder with zip files - Issue [#186](https://github.com/sdv-dev/SDGym/issues/186) by @katxiao
+* Enforce that each synthesizer is unique in benchmark_single_table - Issue [#190](https://github.com/sdv-dev/SDGym/issues/190) by @katxiao
+* Simplify the file names inside the detailed_results_folder - Issue [#191](https://github.com/sdv-dev/SDGym/issues/191) by @katxiao
+* Use SDMetrics silent report generation - Issue [#179](https://github.com/sdv-dev/SDGym/issues/179) by @katxiao
+* Remove arguments in get_available_datasets - Issue [#197](https://github.com/sdv-dev/SDGym/issues/197) by @katxiao
+* Accept metadata.json as valid metadata file - Issue [#194](https://github.com/sdv-dev/SDGym/issues/194) by @katxiao
+* Check if file or folder exists before writing benchmarking results - Issue [#196](https://github.com/sdv-dev/SDGym/issues/196) by @katxiao
+* Rename benchmarking argument "evaluate_quality" to "compute_quality_score" - Issue [#195](https://github.com/sdv-dev/SDGym/issues/195) by @katxiao
+* Add option to disable sdmetrics in benchmarking - Issue [#182](https://github.com/sdv-dev/SDGym/issues/182) by @katxiao
+* Prefix remote bucket with 's3' - Issue [#183](https://github.com/sdv-dev/SDGym/issues/183) by @katxiao
+* Benchmarking error handling - Issue [#177](https://github.com/sdv-dev/SDGym/issues/177) by @katxiao
+* Allow users to specify custom synthesizers' display names - Issue [#174](https://github.com/sdv-dev/SDGym/issues/174) by @katxiao
+* Update benchmarking results columns - Issue [#172](https://github.com/sdv-dev/SDGym/issues/172) by @katxiao
+* Allow custom datasets - Issue [#166](https://github.com/sdv-dev/SDGym/issues/166) by @katxiao
+* Use new datasets s3 bucket - Issue [#161](https://github.com/sdv-dev/SDGym/issues/161) by @katxiao
+* Create benchmark_single_table method - Issue [#151](https://github.com/sdv-dev/SDGym/issues/151) by @katxiao
+* Update summary metrics - Issue [#134](https://github.com/sdv-dev/SDGym/issues/134) by @katxiao
+* Benchmark individual methods - Issue [#159](https://github.com/sdv-dev/SDGym/issues/159) by @katxiao
+* Add method to create a sdv variant synthesizer - Issue [#152](https://github.com/sdv-dev/SDGym/issues/152) by @katxiao
+* Add method to generate a multi table synthesizer - Issue [#149](https://github.com/sdv-dev/SDGym/issues/149) by @katxiao
+* Add method to create single table synthesizers - Issue [#148](https://github.com/sdv-dev/SDGym/issues/148) by @katxiao
+* Updating existing synthesizers to new API - Issue [#154](https://github.com/sdv-dev/SDGym/issues/154) by @katxiao
+
+### Bug Fixes
+* Pip encounters dependency issues with ipython - Issue [#187](https://github.com/sdv-dev/SDGym/issues/187) by @katxiao
+* IndependentSynthesizer is printing out ConvergeWarning too many times - Issue [#192](https://github.com/sdv-dev/SDGym/issues/192) by @katxiao
+* Size values in benchmarking results seems inaccurate - Issue [#184](https://github.com/sdv-dev/SDGym/issues/184) by @katxiao
+* Import error in the example for benchmarking the synthesizers - Issue [#139](https://github.com/sdv-dev/SDGym/issues/139) by @katxiao
+* Updates and bugfixes - Issue [#132](https://github.com/sdv-dev/SDGym/issues/132) by @csala
+
+### Maintenance
+* Update README - Issue [#203](https://github.com/sdv-dev/SDGym/issues/203) by @katxiao
+* Support Python Versions >=3.7 and <3.11 - Issue [#170](https://github.com/sdv-dev/SDGym/issues/170) by @katxiao
+* SDGym Package Maintenance Updates documentation  - Issue [#163](https://github.com/sdv-dev/SDGym/issues/163) by @katxiao
+* Remove YData - Issue [#168](https://github.com/sdv-dev/SDGym/issues/168) by @katxiao
+* Update to newest SDV - Issue [#157](https://github.com/sdv-dev/SDGym/issues/157) by @katxiao
+* Update slack invite link. - Issue [#144](https://github.com/sdv-dev/SDGym/issues/144) by @pvk-developer
+* updating workflows to work with windows - Issue [#136](https://github.com/sdv-dev/SDGym/issues/136) by @amontanez24
+* Update conda dependencies - Issue [#130](https://github.com/sdv-dev/SDGym/issues/130) by @katxiao
+
+## v0.5.0 - 2021-12-13
+This release adds support for Python 3.9, and updates dependencies to accept the latest versions when possible.
+
+### Issues closed
+
+* Add support for Python 3.9 - [Issue #127](https://github.com/sdv-dev/SDGym/issues/127) by @katxiao
+* Add pip check worflow - [Issue #124](https://github.com/sdv-dev/SDGym/issues/124) by @pvk-developer
+* Fix meta.yaml dependencies - [PR #119](https://github.com/sdv-dev/SDGym/pull/119) by @fealho
+* Upgrade dependency ranges - [Issue #118](https://github.com/sdv-dev/SDGym/issues/118) by @katxiao
+
+## v0.4.1 - 2021-08-20
+This release fixed a bug where passing a `json` file as configuration for a multi-table synthesizer crashed the model.
+It also adds a number of fixes and enhancements, including: (1) a function and CLI command to list the available synthesizer names,
+(2) a curate set of dependencies and making `Gretel` into an optional dependency, (3) updating `Gretel` to use temp directories,
+(4) using `nvidia-smi` to get the number of gpus and (5) multiple `dockerfile` updates to improve functionality.
+
+### Issues closed
+
+* Bug when using JSON configuration for multiple multi-table evaluation - [Issue #115](https://github.com/sdv-dev/SDGym/issues/115) by @pvk-developer
+* Use nvidia-smi to get number of gpus - [PR #113](https://github.com/sdv-dev/SDGym/issues/113) by @katxiao
+* List synthesizer names - [Issue #82](https://github.com/sdv-dev/SDGym/issues/82) by @fealho
+* Use nvidia base for dockerfile - [PR #108](https://github.com/sdv-dev/SDGym/issues/108) by @katxiao
+* Add Makefile target to install gretel and ydata - [PR #107](https://github.com/sdv-dev/SDGym/issues/107) by @katxiao
+* Curate dependencies and make Gretel optional - [PR #106](https://github.com/sdv-dev/SDGym/issues/106) by @csala
+* Update gretel checkpoints to use temp directory - [PR #105](https://github.com/sdv-dev/SDGym/issues/105) by @katxiao
+* Initialize variable before reference - [PR #104](https://github.com/sdv-dev/SDGym/issues/104) by @katxiao
+
+## v0.4.0 - 2021-06-17
+
+This release adds new synthesizers for Gretel and ydata, and creates a Docker image for SDGym.
+It also includes enhancements to the accepted SDGym arguments, adds a summary command to aggregate
+metrics, and adds the normalized score to the benchmark results.
+
+### New Features
+
+* Add normalized score to benchmark results - [Issue #102](https://github.com/sdv-dev/SDGym/issues/102) by @katxiao
+* Add max rows and max columns args - [Issue #96](https://github.com/sdv-dev/SDGym/issues/96) by @katxiao
+* Automatically detect number of workers - [Issue #97](https://github.com/sdv-dev/SDGym/issues/97) by @katxiao
+* Add summary function and command - [Issue #92](https://github.com/sdv-dev/SDGym/issues/92) by @amontanez24
+* Allow jobs list/JSON to be passed - [Issue #93](https://github.com/sdv-dev/SDGym/issues/93) by @fealho
+* Add ydata to sdgym - [Issue #90](https://github.com/sdv-dev/SDGym/issues/90) by @fealho
+* Add dockerfile for sdgym - [Issue #88](https://github.com/sdv-dev/SDGym/issues/88) by @katxiao
+* Add Gretel to SDGym synthesizer - [Issue #87](https://github.com/sdv-dev/SDGym/issues/87) by @amontanez24
+
+## v0.3.1 - 2021-05-20
+
+This release adds new features to store results and cache contents into an S3 bucket
+as well as a script to collect results from a cache dir and compile a single results
+CSV file.
+
+### Issues closed
+
+* Collect cached results from s3 bucket - [Issue #85](https://github.com/sdv-dev/SDGym/issues/85) by @katxiao
+* Store cache contents into an S3 bucket - [Issue #81](https://github.com/sdv-dev/SDGym/issues/81) by @katxiao
+* Store SDGym results into an S3 bucket - [Issue #80](https://github.com/sdv-dev/SDGym/issues/80) by @katxiao
+* Add a way to collect cached results - [Issue #79](https://github.com/sdv-dev/SDGym/issues/79) by @katxiao
+* Allow reading datasets from private s3 bucket - [Issue #74](https://github.com/sdv-dev/SDGym/issues/74) by @katxiao
+* Typos in the sdgym.run function docstring documentation - [Issue #69](https://github.com/sdv-dev/SDGym/issues/69) by @sbrugman
+
+## v0.3.0 - 2021-01-27
+
+Major rework of the SDGym functionality to support a collection of new features:
+
+* Add relational and timeseries model benchmarking.
+* Use SDMetrics for model scoring.
+* Update datasets format to match SDV metadata based storage format.
+* Centralize default datasets collection in the `sdv-datasets` S3 bucket.
+* Add options to download and use datasets from different S3 buckets.
+* Rename synthesizers to baselines and adapt to the new metadata format.
+* Add model execution and metric computation time logging.
+* Add optional synthetic data and error traceback caching.
+
+## v0.2.2 - 2020-10-17
+
+This version adds a rework of the benchmark function and a few new synthesizers.
+
+### New Features
+
+* New CLI with `run`, `make-leaderboard` and `make-summary` commands
+* Parallel execution via Dask or Multiprocessing
+* Download datasets without executing the benchmark
+* Support for python from 3.6 to 3.8
+
+### New Synthesizers
+
+* `sdv.tabular.CTGAN`
+* `sdv.tabular.CopulaGAN`
+* `sdv.tabular.GaussianCopulaOneHot`
+* `sdv.tabular.GaussianCopulaCategorical`
+* `sdv.tabular.GaussianCopulaCategoricalFuzzy`
+
+## v0.2.1 - 2020-05-12
+
+New updated leaderboard and minor improvements.
+
+### New Features
+
+* Add parameters for PrivBNSynthesizer - [Issue #37](https://github.com/sdv-dev/SDGym/issues/37) by @csala
+
+## v0.2.0 - 2020-04-10
+
+New Becnhmark API and lots of improved documentation.
+
+### New Features
+
+* The benchmark function now returns a complete leaderboard instead of only one score
+* Class Synthesizers can be directly passed to the benchmark function
+
+### Bug Fixes
+
+* One hot encoding errors in the Independent, VEEGAN and Medgan Synthesizers.
+* Proper usage of the `eval` mode during sampling.
+* Fix improperly configured datasets.
+
+## v0.1.0 - 2019-08-07
+
+First release to PyPi

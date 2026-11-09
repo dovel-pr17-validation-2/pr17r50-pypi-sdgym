@@ -1,0 +1,438 @@
+Run started:2026-11-04 14:35:43.720099+00:00
+
+Test results:
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Low
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b608_hardcoded_sql_expressions.html
+   Location: ./sdgym/_benchmark/benchmark.py:163:12
+162	    return textwrap.dedent(
+163	        f"""\
+164	        #!/bin/bash
+165	        set -e
+166	
+167	        LOG_FILE=/var/log/user-data.log
+168	        exec >> "$LOG_FILE" 2>&1
+169	
+170	        log() {{
+171	          echo "$@"
+172	        }}
+173	
+174	        {upload_logs_fn}
+175	        {terminate_fn}
+176	
+177	        # Always cleanup on exit
+178	        trap cleanup EXIT
+179	
+180	        log "======== Instance: {instance_name} =========="
+181	
+182	        log "======== Configure kernel OOM behavior =========="
+183	        sudo sysctl -w vm.panic_on_oom=1
+184	        sudo sysctl -w kernel.panic=0
+185	
+186	        log "======== Update and Install Dependencies =========="
+187	        sudo apt update -y
+188	        sudo apt install -y python3-pip python3-venv awscli git jq
+189	
+190	        log "======== Setting up swap ({swap_gb}G) =========="
+191	        sudo fallocate -l {swap_gb}G /swapfile || \
+192	          sudo dd if=/dev/zero of=/swapfile bs=1M count=$(({swap_gb}*1024))
+193	        sudo chmod 600 /swapfile
+194	        sudo mkswap /swapfile
+195	        sudo swapon /swapfile
+196	
+197	        log "======== Configure AWS CLI =========="
+198	        aws configure set aws_access_key_id '{aws_key}'
+199	        aws configure set aws_secret_access_key '{aws_secret}'
+200	        aws configure set default.region '{S3_REGION}'
+201	
+202	        log "======== Create Virtual Environment =========="
+203	        python3 -m venv ~/env
+204	        source ~/env/bin/activate
+205	
+206	        log "======== Install Dependencies =========="
+207	        pip install --upgrade pip
+208	        {sdv_install}
+209	        pip install "sdgym[all]"
+210	
+211	        {gpu_block}
+212	
+213	        log "======== Write Script =========="
+214	        cat << 'EOF' > ~/sdgym_script.py
+215	{script_content}
+216	EOF
+217	
+218	        log "======== Run Script =========="
+219	        python -u ~/sdgym_script.py | tee -a /var/log/sdgym.log
+220	
+221	        log "======== Complete =========="
+222	        """
+223	    ).strip()
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/benchmark.py:489:8
+488	    if isinstance(synthesizer, type):
+489	        assert issubclass(synthesizer, BaselineSynthesizer), (
+490	            '`synthesizer` must be a synthesizer class'
+491	        )
+492	        synthesizer = synthesizer()
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/benchmark.py:494:8
+493	    else:
+494	        assert issubclass(type(synthesizer), BaselineSynthesizer), (
+495	            '`synthesizer` must be an instance of a synthesizer class.'
+496	        )
+497	
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Low
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b608_hardcoded_sql_expressions.html
+   Location: ./sdgym/benchmark.py:1457:31
+1456	def _get_user_data_script(access_key, secret_key, region_name, script_content):
+1457	    return textwrap.dedent(f"""\
+1458	        #!/bin/bash
+1459	        set -e
+1460	
+1461	        # Always terminate the instance when the script exits (success or failure)
+1462	        trap '
+1463	        INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id);
+1464	        echo "======== Terminating EC2 instance: $INSTANCE_ID ==========";
+1465	        aws ec2 terminate-instances --instance-ids $INSTANCE_ID;
+1466	        ' EXIT
+1467	
+1468	        exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+1469	        echo "======== Update and Install Dependencies ============"
+1470	        sudo apt update -y
+1471	        sudo apt install -y python3-pip python3-venv awscli
+1472	        echo "======== Configure AWS CLI ============"
+1473	        aws configure set aws_access_key_id '{access_key}'
+1474	        aws configure set aws_secret_access_key '{secret_key}'
+1475	        aws configure set default.region '{region_name}'
+1476	
+1477	        echo "======== Create Virtual Environment ============"
+1478	        python3 -m venv ~/env
+1479	        source ~/env/bin/activate
+1480	
+1481	        echo "======== Install Dependencies in venv ============"
+1482	        pip install --upgrade pip
+1483	        pip install sdgym[all]
+1484	        pip install s3fs
+1485	
+1486	        echo "======== Write Script ==========="
+1487	        cat << 'EOF' > ~/sdgym_script.py
+1488	{script_content}
+1489	EOF
+1490	
+1491	        echo "======== Run Script ==========="
+1492	        python ~/sdgym_script.py
+1493	        echo "======== Complete ==========="
+1494	        INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+1495	        aws ec2 terminate-instances --instance-ids $INSTANCE_ID
+1496	    """).strip()
+1497	
+
+--------------------------------------------------
+>> Issue: [B615:huggingface_unsafe_download] Unsafe Hugging Face Hub download without revision pinning in load_dataset()
+   Severity: Medium   Confidence: High
+   CWE: CWE-494 (https://cwe.mitre.org/data/definitions/494.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b615_huggingface_unsafe_download.html
+   Location: ./sdgym/cli/utils.py:112:18
+111	    for dataset_path in datasets_path.iterdir():
+112	        dataset = load_dataset(dataset_path)
+113	        datasets.append({
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: ./sdgym/result_writer.py:140:12
+139	
+140	            except Exception:
+141	                pass  # If the file does not exist, we will create it
+142	
+
+--------------------------------------------------
+>> Issue: [B106:hardcoded_password_funcarg] Possible hardcoded password: 'https://oauth2.googleapis.com/token'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b106_hardcoded_password_funcarg.html
+   Location: ./sdgym/run_benchmark/upload_benchmark_results.py:122:12
+121	    creds_dict = json.loads(os.environ['PYDRIVE_TOKEN'])
+122	    creds = OAuth2Credentials(
+123	        access_token=creds_dict['access_token'],
+124	        client_id=creds_dict.get('client_id'),
+125	        client_secret=creds_dict.get('client_secret'),
+126	        refresh_token=creds_dict.get('refresh_token'),
+127	        token_expiry=None,
+128	        token_uri='https://oauth2.googleapis.com/token',
+129	        user_agent=None,
+130	    )
+131	    gauth = GoogleAuth()
+
+--------------------------------------------------
+>> Issue: [B403:blacklist] Consider possible security implications associated with pickle module.
+   Severity: Low   Confidence: High
+   CWE: CWE-502 (https://cwe.mitre.org/data/definitions/502.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b403-import-pickle
+   Location: ./sdgym/s3.py:5:0
+4	import logging
+5	import pickle
+6	from urllib.parse import urlparse
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b311-random
+   Location: ./sdgym/synthesizers/clavaddpm.py:209:20
+208	    # Generate a random number between 0 and 1
+209	    random_number = random.random()
+210	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/clavaddpm.py:319:8
+318	        indices = convert_to_unique_indices(indices)
+319	        assert len(indices) == len(set(indices))
+320	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/clavaddpm.py:479:4
+478	    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths, axis=0)
+479	    assert (
+480	        sorted_parent_data_repeated[:, parent_primary_key_index]
+481	        == sorted_child_data[:, foreing_key_index]
+482	    ).all()
+483	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/clavaddpm.py:639:12
+638	        if parent_id in parent_id_to_cluster:
+639	            assert parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
+640	            continue
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:202:8
+201	            dropouts = [dropouts] * len(d_layers)
+202	        assert len(d_layers) == len(dropouts)
+203	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:225:8
+224	        """Create a "baseline" MLP: ReLU activations, uniform dropout."""
+225	        assert isinstance(dropout, float)
+226	        if len(d_layers) > 2:
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:227:12
+226	        if len(d_layers) > 2:
+227	            assert len(set(d_layers[1:-1])) == 1, (
+228	                'if d_layers contains more than two elements, then'
+229	                ' all elements except for the first and the last ones must be equal.'
+230	            )
+231	        return MLP(
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:301:8
+300	        super(GaussianMultinomialDiffusion, self).__init__()
+301	        assert multinomial_loss_type in ('vb_stochastic', 'vb_all')
+302	        assert parametrization in ('x0', 'direct')
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:302:8
+301	        assert multinomial_loss_type in ('vb_stochastic', 'vb_all')
+302	        assert parametrization in ('x0', 'direct')
+303	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:365:8
+364	
+365	        assert _log_add_exp(log_alpha, log_1_min_alpha).abs().sum().item() < 1.0e-5
+366	        assert _log_add_exp(log_cumprod_alpha, log_1_min_cumprod_alpha).abs().sum().item() < 1e-5
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:366:8
+365	        assert _log_add_exp(log_alpha, log_1_min_alpha).abs().sum().item() < 1.0e-5
+366	        assert _log_add_exp(log_cumprod_alpha, log_1_min_cumprod_alpha).abs().sum().item() < 1e-5
+367	        assert (np.cumsum(log_alpha) - log_cumprod_alpha).abs().sum().item() < 1.0e-5
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:367:8
+366	        assert _log_add_exp(log_cumprod_alpha, log_1_min_cumprod_alpha).abs().sum().item() < 1e-5
+367	        assert (np.cumsum(log_alpha) - log_cumprod_alpha).abs().sum().item() < 1.0e-5
+368	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:395:8
+394	            noise = torch.randn_like(x_start)
+395	        assert noise.shape == x_start.shape
+396	        return (
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:402:8
+401	    def _gaussian_q_posterior_mean_variance(self, x_start, x_t, t):
+402	        assert x_start.shape == x_t.shape
+403	        posterior_mean = (
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:413:8
+412	        B = x.shape[0]
+413	        assert t.shape == (B,)
+414	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:440:8
+439	    def _predict_xstart_from_eps(self, x_t, t, eps):
+440	        assert x_t.shape == eps.shape
+441	        return (
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:483:8
+482	    def _predict_start(self, model_out, log_x_t):
+483	        assert model_out.size(0) == log_x_t.size(0)
+484	        assert model_out.size(1) == self.num_classes.sum(), f'{model_out.size()}'
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: ./sdgym/synthesizers/tabddpm.py:484:8
+483	        assert model_out.size(0) == log_x_t.size(0)
+484	        assert model_out.size(1) == self.num_classes.sum(), f'{model_out.size()}'
+485	
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./sdgym/utils.py:5:0
+4	import os
+5	import subprocess
+6	import sys
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./sdgym/utils.py:145:17
+144	        command = ['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits']
+145	        output = subprocess.run(command, stdout=subprocess.PIPE)
+146	        return len(output.stdout.decode().split())
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./sdgym/utils.py:161:17
+160	        command = ['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits']
+161	        output = subprocess.run(command, stdout=subprocess.PIPE)
+162	        loads = np.array(output.stdout.decode().split()).astype(float)
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'sdgym['
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b105_hardcoded_password_string.html
+   Location: ./tasks.py:102:18
+101	    extra_dependencies = []
+102	    start_token = 'sdgym['
+103	    for dep in test_dependencies:
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 10626
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 27
+		Medium: 3
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 2
+		Medium: 2
+		High: 26
+Files skipped (0):

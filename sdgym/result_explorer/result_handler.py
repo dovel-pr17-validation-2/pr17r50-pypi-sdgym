@@ -1,0 +1,579 @@
+"""Handlers for managing SDGym benchmark results, supporting both local and S3 storage."""
+
+import io
+import operator
+import os
+import tempfile
+import warnings
+from abc import ABC, abstractmethod
+from datetime import datetime
+
+import cloudpickle
+import pandas as pd
+import yaml
+from botocore.exceptions import ClientError
+from sdmetrics.reports.base_report import BaseReport
+
+from sdgym._dataset_utils import _read_zipped_data
+from sdgym.benchmark import TIMEOUT, _add_adjusted_scores
+from sdgym.s3 import load_pickle_from_s3
+from sdgym.utils import _is_list_of_type
+
+SYNTHESIZER_BASELINE = 'GaussianCopulaSynthesizer'
+RESULTS_FOLDER_PREFIX = 'SDGym_results_'
+metainfo_PREFIX = 'metainfo'
+RESULTS_FILE_PREFIX = 'results'
+NUM_DIGITS_DATE = 10
+REGEX_SYNTHESIZER_NAME = r'\s*\(\d+\)\s*$'
+SUMMARY_COLUMNS = [
+    'Dataset',
+    'Synthesizer',
+    'Adjusted_Total_Time',
+    'Adjusted_Quality_Score',
+    'Diagnostic_Score',
+]
+
+
+class ResultsHandler(ABC):
+    """Abstract base class for handling results storage and retrieval."""
+
+    def __init__(self, baseline_synthesizer=SYNTHESIZER_BASELINE):
+        self.baseline_synthesizer = baseline_synthesizer or SYNTHESIZER_BASELINE
+
+    @abstractmethod
+    def list(self):
+        """List all runs in the results directory."""
+        pass
+
+    @abstractmethod
+    def get_file_path(self, path_parts, end_filename):
+        """Validate access to a specific file in the results directory."""
+        pass
+
+    @abstractmethod
+    def load_synthesizer(self, file_path):
+        """Load a synthesizer from a file."""
+        pass
+
+    @abstractmethod
+    def load_synthetic_data(self, file_path):
+        """Load synthetic data from a file."""
+        pass
+
+    @abstractmethod
+    def load_quality_report(self, file_path):
+        """Load a quality report from a file."""
+        pass
+
+    @abstractmethod
+    def _load_yaml_file(self, folder_name, file_name):
+        """Load a YAML file from the results folder."""
+        pass
+
+    def _validate_folder_name(self, folder_name):
+        """Validate that the provided folder name exists in the results directory."""
+        all_folders = self.list()
+        if folder_name not in all_folders:
+            raise ValueError(f"Folder '{folder_name}' does not exist in the results directory.")
+
+    def _compute_dataset_pareto_frontier(self, dataset_results):
+        """Compute whether synthesizers are on the Pareto frontier for the dataset."""
+        qualities = dataset_results['Adjusted_Quality_Score'].to_numpy()
+        runtimes = dataset_results['Adjusted_Total_Time'].to_numpy()
+
+        is_on_frontier = []
+        for quality, runtime in zip(qualities, runtimes):
+            dominated = ((qualities > quality) & (runtimes < runtime)).any()
+            is_on_frontier.append(not dominated)
+
+        return pd.Series(is_on_frontier, index=dataset_results.index)
+
+    def _compute_pareto_frontier(self, result):
+        """Compute whether synthesizers are on the Pareto frontier for all datasets."""
+        frontier_masks = []
+        for _, dataset_results in result.groupby('Dataset', sort=False):
+            dataset_frontier = self._compute_dataset_pareto_frontier(dataset_results)
+            dataset_frontier = pd.Series(dataset_frontier, index=dataset_results.index)
+            frontier_masks.append(dataset_frontier)
+
+        frontier_mask = pd.concat(frontier_masks).reindex(result.index)
+        return frontier_mask.astype(bool)
+
+    def _compute_meets_baseline_quality(self, result):
+        """Compute whether synthesizers meet or exceed the baseline quality for all datasets."""
+        baseline_scores = (
+            result
+            .loc[
+                result['Synthesizer'] == self.baseline_synthesizer,
+                ['Dataset', 'Adjusted_Quality_Score'],
+            ]
+            .drop_duplicates(subset='Dataset')
+            .rename(columns={'Adjusted_Quality_Score': 'Baseline_Quality_Score'})
+        )
+
+        result_with_baseline = result.merge(baseline_scores, on='Dataset', how='left')
+        meet_baseline = (
+            result_with_baseline['Adjusted_Quality_Score']
+            >= result_with_baseline['Baseline_Quality_Score']
+        )
+
+        return meet_baseline
+
+    def _compute_wins(self, result):
+        """Compute wins based on baseline quality and Pareto frontier."""
+        result['Meets_Baseline_Quality'] = self._compute_meets_baseline_quality(result)
+        result['On_Pareto_Frontier'] = self._compute_pareto_frontier(result)
+        result['Win'] = (result['Meets_Baseline_Quality'] & result['On_Pareto_Frontier']).astype(
+            int
+        )
+        result = result.drop(columns=['Meets_Baseline_Quality', 'On_Pareto_Frontier'])
+
+        return result
+
+    def _get_summarize_table(self, folder_to_results, folder_infos):
+        """Create a summary table from the results."""
+        columns = []
+        for folder, results in folder_to_results.items():
+            date_str = folder_infos[folder]['date']
+            date_obj = datetime.strptime(date_str, '%m_%d_%Y')
+            column_name = (
+                f'{date_str}'
+                f' - # datasets: {folder_infos[folder]["# datasets"]}'
+                f' - sdgym version: {folder_infos[folder]["sdgym_version"]}'
+            )
+            column_data = results.groupby(['Synthesizer'])['Win'].sum()
+            columns.append((date_obj, column_name, column_data))
+
+        columns.sort(key=operator.itemgetter(0))
+        summarized_results = pd.DataFrame()
+        for _, column_name, column_data in reversed(columns):
+            summarized_results[column_name] = column_data
+
+        summarized_results = summarized_results.fillna('-')
+        summarized_results = summarized_results.reset_index()
+        summarized_results = summarized_results.rename(columns={'index': 'Synthesizer'})
+
+        return summarized_results
+
+    def _get_column_name_infos(self, folder_to_results):
+        folder_to_info = {}
+        for folder, results in folder_to_results.items():
+            yaml_files = self._get_results_files(folder, prefix=metainfo_PREFIX, suffix='.yaml')
+            if not yaml_files:
+                continue
+
+            metainfo_info = self._load_yaml_file(folder, yaml_files[0])
+            baseline_mask = results['Synthesizer'] == self.baseline_synthesizer
+            if baseline_mask.any():
+                num_datasets = results.loc[baseline_mask, 'Dataset'].nunique()
+            else:
+                num_datasets = results['Dataset'].nunique()
+            folder_to_info[folder] = {
+                'date': folder[len(RESULTS_FOLDER_PREFIX) :],
+                'sdgym_version': metainfo_info.get('sdgym_version'),
+                '# datasets': num_datasets,
+            }
+
+        return folder_to_info
+
+    def _process_results(self, results):
+        """Process results to ensure they are unique and each dataset has all synthesizers."""
+        aggregated_results = pd.concat(results, ignore_index=True)
+        aggregated_results['Synthesizer'] = (
+            aggregated_results['Synthesizer']
+            .astype(str)
+            .str.replace(REGEX_SYNTHESIZER_NAME, '', regex=True)
+            .str.strip()
+        )
+        if 'Error' in aggregated_results.columns:
+            is_uniform = aggregated_results['Synthesizer'].str.contains('UniformSynthesizer')
+            has_error = aggregated_results['Error'].notna()
+            aggregated_results['Successful_Uniform'] = ~(is_uniform & has_error)
+            aggregated_results = aggregated_results.sort_values(
+                'Successful_Uniform', ascending=False, kind='stable'
+            )
+            aggregated_results = aggregated_results.drop(columns='Successful_Uniform')
+
+        aggregated_results = aggregated_results.drop_duplicates(
+            subset=['Dataset', 'Synthesizer'],
+            keep='first',
+        )
+        aggregated_results = _add_adjusted_scores(aggregated_results, timeout=TIMEOUT)
+
+        # Backward compatibility for runs done before graceful degradation logic existed
+        fallback_columns = {
+            'Adjusted_Quality_Score': aggregated_results['Quality_Score'],
+            'Adjusted_Total_Time': (
+                aggregated_results['Train_Time'] + aggregated_results['Sample_Time']
+            ),
+        }
+        missing_adjusted_columns = [
+            column for column in fallback_columns if aggregated_results[column].isna().all()
+        ]
+        for column in missing_adjusted_columns:
+            aggregated_results[column] = fallback_columns[column]
+
+        all_synthesizers = aggregated_results['Synthesizer'].unique()
+        dataset_synth_counts = aggregated_results.groupby('Dataset')['Synthesizer'].nunique()
+        valid_datasets = dataset_synth_counts[dataset_synth_counts == len(all_synthesizers)].index
+        filtered_results = aggregated_results[aggregated_results['Dataset'].isin(valid_datasets)]
+        if filtered_results.empty:
+            raise ValueError(
+                'There is no dataset that has been run by all synthesizers. Cannot '
+                'summarize results.'
+            )
+
+        filtered_results = filtered_results.sort_values(by=['Dataset', 'Synthesizer'])
+
+        return filtered_results.reset_index(drop=True), missing_adjusted_columns
+
+    def summarize(self, results_folder_name):
+        """Summarize the results in the specified folder."""
+        all_folders = [f for f in self.list() if f.startswith(RESULTS_FOLDER_PREFIX)]
+        if results_folder_name not in all_folders:
+            raise ValueError(
+                f'Folder "{results_folder_name}" does not exist in the results directory.'
+            )
+
+        date = pd.to_datetime(results_folder_name[-NUM_DIGITS_DATE:], format='%m_%d_%Y')
+        folder_to_results = {}
+        for folder in all_folders:
+            folder_date = pd.to_datetime(folder[len(RESULTS_FOLDER_PREFIX) :], format='%m_%d_%Y')
+            if folder_date > date:
+                continue
+
+            result_filenames = self._get_results_files(
+                folder, prefix=RESULTS_FILE_PREFIX, suffix='.csv'
+            )
+            if not result_filenames:
+                continue
+
+            results = self._get_results(folder, result_filenames)
+            if not results:
+                continue
+
+            aggregated_results, missing_adjusted_columns = self._process_results(results)
+            aggregated_results = self._compute_wins(aggregated_results)
+            if missing_adjusted_columns:
+                aggregated_results = aggregated_results.drop(columns=missing_adjusted_columns)
+
+            folder_to_results[folder] = aggregated_results
+
+        folder_infos = self._get_column_name_infos(folder_to_results)
+        summarized_table = self._get_summarize_table(folder_to_results, folder_infos)
+
+        return summarized_table, folder_to_results[results_folder_name]
+
+    def _validate_load_results_filters(self, dataset_names, synthesizer_names, summary):
+        if dataset_names is not None:
+            if not _is_list_of_type(dataset_names, str):
+                raise ValueError('`dataset_names` must be a list of strings or None.')
+
+        if synthesizer_names is not None:
+            if not _is_list_of_type(synthesizer_names, str):
+                raise ValueError('`synthesizer_names` must be a list of strings or None.')
+
+        if not isinstance(summary, bool):
+            raise ValueError('`summary` must be a boolean.')
+
+    def load_results(
+        self, results_folder_name, dataset_names=None, synthesizer_names=None, summary=False
+    ):
+        """Load and aggregate all the results CSV files from the specified results folder.
+
+        Args:
+            results_folder_name (str):
+                The name of the results folder to load results from.
+            dataset_names (list of str, optional):
+                A list of dataset names to filter results for. If None, results for all
+                datasets will be loaded. Defaults to None.
+            synthesizer_names (list of str, optional):
+                A list of synthesizer names to filter results for. If None, results for all
+                synthesizers will be loaded. Defaults to None.
+            summary (bool, optional):
+                If True, only return the summary results which include the following columns:
+                - 'Dataset'
+                - 'Synthesizer'
+                - 'Adjusted_Total_Time'
+                - 'Adjusted_Quality_Score'
+                - 'Diagnostic_Score'
+                Defaults to False.
+
+        Returns:
+            pd.DataFrame:
+                A DataFrame containing the results of the specified folder.
+        """
+        has_dataset_filter = dataset_names is not None
+        has_synthesizer_filter = synthesizer_names is not None
+        self._validate_folder_name(results_folder_name)
+        self._validate_load_results_filters(dataset_names, synthesizer_names, summary)
+        result_filenames = self._get_results_files(
+            results_folder_name, prefix=RESULTS_FILE_PREFIX, suffix='.csv'
+        )
+
+        result = pd.concat(
+            self._get_results(results_folder_name, result_filenames),
+            ignore_index=True,
+        )
+        if has_dataset_filter:
+            result = result[result['Dataset'].isin(dataset_names)]
+
+        if has_synthesizer_filter:
+            result = result[result['Synthesizer'].isin(synthesizer_names)]
+
+        if result.empty:
+            filters = []
+            if has_dataset_filter:
+                filters.append(f'- Datasets: {", ".join(dataset_names)}')
+            if has_synthesizer_filter:
+                filters.append(f'- Synthesizers: {", ".join(synthesizer_names)}')
+
+            if filters:
+                filters_text = '\n'.join(filters)
+                warning_message = (
+                    f'No results found in folder "{results_folder_name}" '
+                    f'matching the specified filters:\n'
+                    f'{filters_text}'
+                )
+            else:
+                warning_message = f'No results found in folder "{results_folder_name}".'
+
+            warnings.warn(warning_message)
+
+        result = result[SUMMARY_COLUMNS] if summary else result
+        return result.reset_index(drop=True)
+
+    def load_metainfo(self, results_folder_name):
+        """Load and aggregate all the metainfo YAML files from the specified results folder.
+
+        Args:
+            results_folder_name (str):
+                The name of the results folder to load metainfo from.
+
+        Returns:
+            dict:
+                A dictionary containing the metainfo of the specified folder.
+        """
+        self._validate_folder_name(results_folder_name)
+        yaml_files = self._get_results_files(
+            results_folder_name, prefix=metainfo_PREFIX, suffix='.yaml'
+        )
+        results = {}
+        for yaml_file in yaml_files:
+            metainfo = self._load_yaml_file(results_folder_name, yaml_file)
+            run_id = metainfo.pop('run_id', None)
+            results[run_id] = metainfo
+
+        return results
+
+    def all_runs_complete(self, results_folder_name):
+        """Check if all runs in the specified folder are complete."""
+        yaml_files = self._get_results_files(
+            results_folder_name, prefix=metainfo_PREFIX, suffix='.yaml'
+        )
+        if not yaml_files:
+            return False
+
+        for yaml_file in yaml_files:
+            metainfo_info = self._load_yaml_file(results_folder_name, yaml_file)
+            if metainfo_info.get('completed_date') is None:
+                return False
+
+        return True
+
+
+class LocalResultsHandler(ResultsHandler):
+    """Results handler for local filesystem."""
+
+    def __init__(self, base_path, baseline_synthesizer=SYNTHESIZER_BASELINE):
+        super().__init__(baseline_synthesizer=baseline_synthesizer)
+        self.base_path = base_path
+
+    def list(self):
+        """List all runs in the local filesystem."""
+        return [
+            d for d in os.listdir(self.base_path) if os.path.isdir(os.path.join(self.base_path, d))
+        ]
+
+    def get_file_path(self, path_parts, end_filename):
+        """Validate access to a specific file in the local filesystem."""
+        full_path = os.path.join(self.base_path, *path_parts)
+        if not os.path.exists(full_path):
+            raise ValueError(f'Path does not exist: {full_path}')
+
+        if not os.path.isfile(os.path.join(full_path, end_filename)):
+            raise ValueError(f'File does not exist: {end_filename}')
+
+        return os.path.join(*path_parts, end_filename)
+
+    def load_synthesizer(self, file_path):
+        """Load a synthesizer from a pickle file."""
+        with open(os.path.join(self.base_path, file_path), 'rb') as f:
+            return cloudpickle.load(f)
+
+    def load_synthetic_data(self, file_path):
+        """Load synthetic data from a CSV or ZIP file."""
+        full_path = os.path.join(self.base_path, file_path)
+        if full_path.endswith('.zip'):
+            return _read_zipped_data(full_path, modality='multi_table')
+
+        return pd.read_csv(full_path)
+
+    def load_quality_report(self, file_path):
+        """Load a quality report from a pickle file."""
+        return BaseReport.load(os.path.join(self.base_path, file_path))
+
+    def _get_results_files(self, results_folder_name, prefix, suffix):
+        return [
+            f
+            for f in os.listdir(os.path.join(self.base_path, results_folder_name))
+            if f.endswith(suffix) and f.startswith(prefix)
+        ]
+
+    def _get_results(self, results_folder_name, file_names):
+        return [
+            pd.read_csv(os.path.join(self.base_path, results_folder_name, file_name))
+            for file_name in file_names
+        ]
+
+    def _load_yaml_file(self, results_folder_name, file_name):
+        file_path = os.path.join(self.base_path, results_folder_name, file_name)
+        with open(file_path, 'r') as f:
+            return yaml.safe_load(f)
+
+
+class S3ResultsHandler(ResultsHandler):
+    """Results handler for AWS S3 storage."""
+
+    def __init__(self, path, s3_client, baseline_synthesizer=SYNTHESIZER_BASELINE):
+        super().__init__(baseline_synthesizer=baseline_synthesizer)
+        self.s3_client = s3_client
+        self.bucket_name = path.split('/')[2]
+        self.prefix = '/'.join(path.split('/')[3:]).rstrip('/') + '/'
+
+    def list(self):
+        """List all runs in the S3 bucket."""
+        response = self.s3_client.list_objects_v2(
+            Bucket=self.bucket_name, Prefix=self.prefix, Delimiter='/'
+        )
+        return [cp['Prefix'].split('/')[-2] for cp in response.get('CommonPrefixes', [])]
+
+    def get_file_path(self, path_parts, end_filename):
+        """Validate access to a specific file in S3."""
+        idx_to_structure = {0: 'Folder', 1: 'Dataset', 2: 'Synthesizer'}
+        file_path = '/'.join(path_parts + [end_filename])
+        previous_s3_key = self.prefix
+        for idx in range(len(path_parts)):
+            level_name = idx_to_structure[idx]
+            current_path = '/'.join(path_parts[: idx + 1]) + '/'
+            s3_key = f'{self.prefix}{current_path}'
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name, Prefix=s3_key, MaxKeys=1
+            )
+
+            if 'Contents' not in response:
+                # If missing, fetch available items under previous level
+                parent_response = self.s3_client.list_objects_v2(
+                    Bucket=self.bucket_name, Prefix=previous_s3_key
+                )
+                available_items = set()
+                if 'Contents' in parent_response:
+                    for obj in parent_response['Contents']:
+                        rel_path = obj['Key'][len(previous_s3_key) :]
+                        if '/' in rel_path:
+                            folder = rel_path.split('/')[0]
+                            if folder:
+                                folder = folder[: -NUM_DIGITS_DATE - 1] if idx == 1 else folder
+                                available_items.add(folder)
+
+                folder_name = path_parts[idx]
+                available_list = ',\n'.join(sorted(available_items)) or 'None'
+                if level_name == 'Dataset':
+                    folder_name = folder_name[: -NUM_DIGITS_DATE - 1]
+
+                if level_name == 'Folder':
+                    raise ValueError(
+                        f"The specified run '{folder_name}' does not exist in 'Benchmarks'. "
+                        f'The available runs are:\n{available_list}'
+                    )
+                elif level_name == 'Dataset':
+                    run_name = path_parts[0]
+                    raise ValueError(
+                        f"Dataset '{folder_name}' was not part of the run '{run_name}'. "
+                        f'The available datasets for this run are:\n{available_list}'
+                    )
+                else:
+                    run_name = path_parts[0]
+                    dataset_name = path_parts[1][: -NUM_DIGITS_DATE - 1]
+                    raise ValueError(
+                        f"Synthesizer '{folder_name}' was not part of the run '{run_name}' "
+                        f"for the dataset '{dataset_name}'. "
+                        'The available synthesizers for this run and dataset are'
+                        f':\n{available_list}'
+                    )
+
+            previous_s3_key = s3_key
+
+        key = f'{self.prefix}{file_path}'
+        try:
+            self.s3_client.head_object(Bucket=self.bucket_name, Key=key)
+        except ClientError as e:
+            raise ValueError(
+                f'File "{end_filename}" does not exist in S3 path: {self.prefix}{file_path}'
+            ) from e
+
+        return file_path
+
+    def load_synthesizer(self, file_path):
+        """Load a synthesizer from S3."""
+        return load_pickle_from_s3(
+            self.s3_client, f's3://{self.bucket_name}/{self.prefix}{file_path}'
+        )
+
+    def load_synthetic_data(self, file_path):
+        """Load synthetic data from S3."""
+        key = f'{self.prefix}{file_path}'
+        response = self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
+        body = response['Body'].read()
+        if file_path.endswith('.zip'):
+            return _read_zipped_data(io.BytesIO(body), modality='multi_table')
+
+        return pd.read_csv(io.BytesIO(body))
+
+    def load_quality_report(self, file_path):
+        """Load a quality report from S3."""
+        key = f'{self.prefix}{file_path}'
+        response = self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = os.path.join(temp_dir, 'report.pkl')
+            with open(temp_path, 'wb') as temp_file:
+                temp_file.write(response['Body'].read())
+
+            return BaseReport.load(temp_path)
+
+    def _get_results_files(self, results_folder_name, prefix, suffix):
+        s3_prefix = f'{self.prefix}{results_folder_name}/'
+        paginator = self.s3_client.get_paginator('list_objects_v2')
+        files = []
+        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=s3_prefix):
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                if key.startswith(s3_prefix + prefix) and key.endswith(suffix):
+                    files.append(key.rsplit('/', 1)[-1])
+
+        return files
+
+    def _get_results(self, results_folder_name, file_names):
+        results = []
+        for file_name in file_names:
+            s3_key = f'{self.prefix}{results_folder_name}/{file_name}'
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+            result_df = pd.read_csv(io.BytesIO(response['Body'].read()))
+            results.append(result_df)
+
+        return results
+
+    def _load_yaml_file(self, results_folder_name, file_name):
+        s3_key = f'{self.prefix}{results_folder_name}/{file_name}'
+        response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+        return yaml.safe_load(response['Body'])

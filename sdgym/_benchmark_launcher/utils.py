@@ -1,0 +1,429 @@
+"""Utilities for benchmark launcher."""
+
+import json
+import os
+import uuid
+from datetime import datetime
+from importlib.resources import files
+from itertools import product
+from urllib.parse import quote_plus
+
+import yaml
+
+from sdgym._benchmark.benchmark import (
+    _benchmark_multi_table_compute_gcp,
+    _benchmark_single_table_compute_gcp,
+)
+from sdgym.run_benchmark.utils import OUTPUT_DESTINATION_AWS, get_s3_console_link
+from sdgym.s3 import parse_s3_path
+
+_YAML_PKG = 'sdgym._benchmark_launcher'
+MODALITY_TO_JOB_SETUP = {
+    'single_table': {
+        'output_destination': OUTPUT_DESTINATION_AWS,
+        'datasets': [
+            'adult',
+            'alarm',
+            'census',
+            'child',
+            'covtype',
+            'expedia_hotel_logs',
+            'insurance',
+            'intrusion',
+            'news',
+        ],
+        'synthesizers': [
+            'ColumnSynthesizer',
+            'GaussianCopulaSynthesizer',
+            'CTGANSynthesizer',
+            'CopulaGANSynthesizer',
+            'TVAESynthesizer',
+            'SegmentSynthesizer',
+            'XGCSynthesizer',
+            'BootstrapSynthesizer',
+            'RealTabFormerSynthesizer',
+            'TabDDPMSynthesizer',
+            'DataDesignerSynthesizer',
+        ],
+    },
+    'multi_table': {
+        'output_destination': OUTPUT_DESTINATION_AWS,
+        'datasets': [
+            'rel-amazon',
+            'rel-arxiv',
+            'rel-avito',
+            'rel-event',
+            'rel-f1',
+            'rel-hm',
+            'rel-ratebeer',
+            'rel-salt',
+            'rel-stack',
+            'rel-trial',
+            'instacart_marketbasket_ml',
+            'MovieLens',
+            'rossmann',
+            'Telstra',
+            'walmart',
+            'WebKP',
+            'DCG',
+            'UW_std',
+            'Same_gen',
+            'CORA',
+            'got_families',
+            'SalesDB',
+            'UTube',
+            'Student_loan',
+            'Hepatitis_std',
+            'Elti',
+            'Bupa',
+            'Toxicology',
+            'imdb_ijs',
+            'ftp',
+            'imdb_small',
+            'imdb_MovieLens',
+            'Pima',
+            'university',
+            'legalActs',
+            'Dunur',
+            'Mesh',
+            'world',
+            'airbnb-simplified',
+            'trains',
+            'FNHK',
+            'fake_hotels',
+            'SAT',
+            'genes',
+            'Biodegradability',
+            'Pyrimidine',
+            'mutagenesis',
+            'restbase',
+            'Triazine',
+            'Carcinogenesis',
+            'fake_hotels_extended',
+            'Mooney_Family',
+            'PTE',
+            'Facebook',
+            'multi_table_ID_demo_dataset',
+            'SAP',
+            'Chess',
+            'Countries',
+            'NCAA',
+            'Atherosclerosis',
+            'nations',
+            'TubePricing',
+            'financial',
+            'Accidents',
+            'MuskSmall',
+            'NBA',
+            'AustralianFootball',
+            'PremierLeague',
+            'OMOP_CDM_dayz',
+        ],
+        'synthesizers': [
+            'HMASynthesizer',
+            'HSASynthesizer',
+            'IndependentSynthesizer',
+            'ClavaDDPMSynthesizer',
+        ],
+    },
+}
+CONFIG_KEYS = {
+    'modality',
+    'method_params',
+    'credentials_filepath',
+    'compute',
+    'instance_jobs',
+}
+_METHODS = {
+    ('single_table', 'gcp'): _benchmark_single_table_compute_gcp,
+    ('multi_table', 'gcp'): _benchmark_multi_table_compute_gcp,
+}
+_AWS_CREDENTIAL_KEYS = (
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+)
+
+_SDV_ENTERPRISE_CREDENTIAL_KEYS = (
+    'SDV_ENTERPRISE_USERNAME',
+    'SDV_ENTERPRISE_LICENSE_KEY',
+)
+
+_GCP_SERVICE_ACCOUNT_REQUIRED_KEYS = (
+    'type',
+    'project_id',
+    'private_key_id',
+    'private_key',
+    'client_email',
+    'client_id',
+    'auth_uri',
+    'token_uri',
+    'auth_provider_x509_cert_url',
+    'client_x509_cert_url',
+)
+
+_GCP_SERVICE_ACCOUNT_JSON = 'GCP_SERVICE_ACCOUNT_JSON'
+_GCP_SERVICE_ACCOUNT_JSON_FILEPATH = 'GCP_SERVICE_ACCOUNT_JSON_FILEPATH'
+
+_REQUIRED_CANONICAL_KEYS = (
+    'instance_type',
+    'boot_image',
+    'root_disk_gb',
+)
+
+
+def _resolve_compute_gcp(config):
+    """Convert canonical compute config keys to GCP-specific keys."""
+    result = dict(config)
+    result['machine_type'] = result.pop('instance_type')
+    result['source_image'] = result.pop('boot_image')
+    result['disk_size_gb'] = result.pop('root_disk_gb')
+
+    return result
+
+
+def resolve_compute(compute):
+    """Resolve the compute configuration based on the benchmark config."""
+    service = compute.get('service')
+    if service == 'gcp':
+        return _resolve_compute_gcp(compute)
+
+    raise ValueError(f"compute.service must be one of: 'gcp'. Found: {service}")
+
+
+def _get_modality_config(modality):
+    """Get the launchable benchmark config for a modality."""
+    result = []
+    job_setup = MODALITY_TO_JOB_SETUP.get(modality)
+    for dataset, synthesizer in product(job_setup['datasets'], job_setup['synthesizers']):
+        result.append({
+            'datasets': [dataset],
+            'synthesizers': [synthesizer],
+            'output_destination': job_setup['output_destination'],
+        })
+
+    return {'modality': modality, 'instance_jobs': result}
+
+
+def _load_merged_modality_config(modality):
+    """Load and merge the base and modality-specific benchmark configs."""
+    base_config = _load_yaml_resource('benchmark_base.yaml')
+    modality_config = _get_modality_config(modality)
+    return _deep_merge(base_config, modality_config)
+
+
+def _resolve_modality_config(modality):
+    """Resolve the launchable benchmark config for a modality."""
+    merged_config = _load_merged_modality_config(modality)
+    return {key: value for key, value in merged_config.items() if key in CONFIG_KEYS}
+
+
+def _resolve_datasets(datasets_spec):
+    """Resolve the list of datasets to run on based on the 'datasets' specification in the config.
+
+    The 'datasets' specification can be either:
+      - ["adult", "census"]  (already final)
+      - {"include": [...], "exclude": [...]}  (compute final)
+    """
+    if isinstance(datasets_spec, list):
+        return list(datasets_spec)
+
+    if isinstance(datasets_spec, dict):
+        include = datasets_spec.get('include', [])
+        exclude = set(datasets_spec.get('exclude', []))
+
+        return [dataset for dataset in include if dataset not in exclude]
+
+    raise ValueError(f"'datasets' must be a list or dict. Found: {type(datasets_spec)}")
+
+
+def _load_yaml_resource(filename: str) -> dict:
+    resource = files(_YAML_PKG).joinpath(filename)
+    with resource.open('r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+
+def _env(name):
+    if not name:
+        return None
+    value = os.getenv(name)
+
+    return value if value not in (None, '') else None
+
+
+def _deep_merge(base, override):
+    """Recursively merge override into base (override wins)."""
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+
+        else:
+            result[key] = value
+
+    return result
+
+
+def generate_ids(prefixes):
+    """Generate a unique identifier for the benchmark instance.
+
+    This method creates a unique identifier by combining the modality, the compute
+    service and the last part of a UUID4 composed by 6 characters.
+
+    Args:
+        prefixes (list of str):
+            A list of prefixes to include in the benchmark ID.
+
+    Returns:
+        ID:
+            A unique identifier for this benchmark instance.
+    """
+    unique_id = ''.join(str(uuid.uuid4()).split('-'))[-6:]
+    return '_'.join(prefixes + [unique_id])
+
+
+def _load_json_file(path):
+    """Load JSON from a file path."""
+    with open(path, encoding='utf-8') as file:
+        return json.load(file)
+
+
+def _get_gcp_credentials_from_env():
+    """Build resolved GCP credentials from environment variables."""
+    json_content = _env(_GCP_SERVICE_ACCOUNT_JSON)
+    if json_content:
+        return json.loads(json_content)
+
+    json_filepath = _env(_GCP_SERVICE_ACCOUNT_JSON_FILEPATH)
+    if json_filepath:
+        return _load_json_file(json_filepath)
+
+    return {key: _env(f'GCP_{key.upper()}') for key in _GCP_SERVICE_ACCOUNT_REQUIRED_KEYS}
+
+
+def _get_env_credentials():
+    """Build resolved credentials from environment variables."""
+    return {
+        'aws': {key: _env(key) for key in _AWS_CREDENTIAL_KEYS},
+        'sdv_enterprise': {key: _env(key) for key in _SDV_ENTERPRISE_CREDENTIAL_KEYS},
+        'gcp': _get_gcp_credentials_from_env(),
+    }
+
+
+def _lowercase_keys(data):
+    if isinstance(data, dict):
+        return {str(key).lower(): _lowercase_keys(value) for key, value in data.items()}
+
+    return data
+
+
+def resolve_credentials(credentials_filepath=None):
+    """Resolve credentials from environment variables and, optionally, a credentials file.
+
+    Environment variables are loaded first. If a credentials file is provided, any values
+    defined in that file override the corresponding environment variables.
+
+    As a result, values from the credentials file take precedence. Environment variables
+    are only used for credentials that are missing from the file.
+    """
+    env_credentials = _get_env_credentials()
+    if credentials_filepath is None:
+        return _lowercase_keys(env_credentials)
+
+    file_credentials = _load_json_file(credentials_filepath)
+    return _lowercase_keys(_deep_merge(env_credentials, file_credentials))
+
+
+def _add_dataset_suffix(dataset):
+    """Return the dataset folder name used in artifact paths."""
+    today = datetime.today().strftime('%m_%d_%Y')
+    return f'{dataset}_{today}'
+
+
+def _get_top_folder_prefix(output_destination, modality):
+    """Return the top folder prefix used for benchmark artifacts."""
+    _, key_prefix = parse_s3_path(output_destination)
+    today = datetime.today().strftime('%m_%d_%Y')
+    modality_prefix = '/'.join([part for part in [key_prefix.rstrip('/'), modality] if part])
+    return (f'{modality_prefix}/SDGym_results_{today}', modality_prefix)
+
+
+def _get_synthetic_data_extension(modality):
+    """Return the synthetic data file extension for the given modality."""
+    return 'zip' if modality == 'multi_table' else 'csv'
+
+
+def _build_s3_uri(output_destination, key):
+    """Build a full S3 URI from an output destination and key."""
+    bucket_name, _ = parse_s3_path(output_destination)
+    return f's3://{bucket_name}/{key}'
+
+
+def _build_job_artifact_keys(artifact_key_prefix, artifact_dataset, artifact_synthesizer, modality):
+    """Build the expected artifact keys for a benchmark job."""
+    job_prefix = f'{artifact_key_prefix.rstrip("/")}/{artifact_dataset}/{artifact_synthesizer}'
+    synthetic_data_extension = _get_synthetic_data_extension(modality)
+
+    benchmark_result_filepath = f'{job_prefix}/{artifact_synthesizer}_benchmark_result.csv'
+    synthetic_data_filepath = (
+        f'{job_prefix}/{artifact_synthesizer}_synthetic_data.{synthetic_data_extension}'
+    )
+    synthesizer_filepath = f'{job_prefix}/{artifact_synthesizer}.pkl'
+
+    return benchmark_result_filepath, synthetic_data_filepath, synthesizer_filepath
+
+
+def _build_job_artifact_filepaths(
+    artifact_key_prefix,
+    artifact_dataset,
+    artifact_synthesizer,
+    modality,
+    output_destination,
+):
+    """Build the expected artifact filepaths for a benchmark job."""
+    benchmark_result_k, synthetic_data_k, synthesizer_k = _build_job_artifact_keys(
+        artifact_key_prefix=artifact_key_prefix,
+        artifact_dataset=artifact_dataset,
+        artifact_synthesizer=artifact_synthesizer,
+        modality=modality,
+    )
+
+    return (
+        _build_s3_uri(output_destination, benchmark_result_k),
+        _build_s3_uri(output_destination, synthetic_data_k),
+        _build_s3_uri(output_destination, synthesizer_k),
+    )
+
+
+def _build_instance_artifact_filepaths(
+    output_destination,
+    artifact_key_prefix,
+    modality_prefix,
+    metainfo_name,
+    results_name,
+):
+    """Build the expected instance-level artifact filepaths."""
+    return (
+        _build_s3_uri(output_destination, f'{artifact_key_prefix}/{metainfo_name}.yaml'),
+        _build_s3_uri(output_destination, f'{artifact_key_prefix}/{results_name}.csv'),
+        _build_s3_uri(output_destination, f'{modality_prefix}/job_args_list_{metainfo_name}.pkl'),
+    )
+
+
+def _build_job_output_destination(
+    output_destination,
+    artifact_key_prefix,
+    artifact_dataset,
+    artifact_synthesizer,
+):
+    """Build the S3 console URL for a benchmark job artifacts folder."""
+    bucket, _ = parse_s3_path(output_destination)
+    prefix = f'{artifact_key_prefix.rstrip("/")}/{artifact_dataset}/{artifact_synthesizer}/'
+    return get_s3_console_link(bucket, quote_plus(prefix))
+
+
+def _is_unique_string_list(value):
+    return (
+        isinstance(value, list)
+        and all(isinstance(item, str) for item in value)
+        and len(value) == len(set(value))
+    )
